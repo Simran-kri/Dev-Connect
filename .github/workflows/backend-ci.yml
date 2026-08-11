@@ -1,0 +1,44 @@
+name: Backend CI
+
+# Only runs when server/ code actually changes - keeps CI fast and avoids
+# false failures from unrelated frontend edits.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run test suite
+        # test/api.test.js spins up an in-memory MongoDB via
+        # mongodb-memory-server, so no real database is needed in CI.
+        run: npm test
+        env:
+          JWT_SECRET: ci-test-secret-not-used-in-production

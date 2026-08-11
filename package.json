@@ -1,0 +1,26 @@
+{
+  "name": "devconnect",
+  "version": "1.0.0",
+  "description": "DevConnect - a social platform for developers with profiles, posts, projects, search, groups, notifications, and realtime chat. client/ and server/ are two fully independent apps (separate package.json + lockfile each) - this root file is only a local dev convenience, not a dependency owner. Either folder can be moved into its own git repo with no changes.",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "client": "npm --prefix client run dev",
+    "server": "npm --prefix server run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server test"
+  },
+  "keywords": [
+    "mern",
+    "social-network",
+    "socket.io",
+    "placement-project"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -1,0 +1,41 @@
+name: Frontend CI
+
+# Only runs when client/ code actually changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build production bundle
+        # A failing build here means Vercel's deploy would fail too - this
+        # catches that on every PR instead of after merging to main.
+        run: npm run build
