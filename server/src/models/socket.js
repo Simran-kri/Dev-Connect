@@ -28,7 +28,6 @@ async function authenticateSocket(socket, next) {
     next(new Error("Invalid or expired token"));
   }
 }
-
 export function registerSocket(io) {
   io.use(authenticateSocket);
 
@@ -248,4 +247,3 @@ export function registerSocket(io) {
     });
   });
 }
-

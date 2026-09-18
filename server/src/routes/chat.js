@@ -13,6 +13,31 @@ router.get("/", protect, asyncHandler(async (req, res) => {
   res.json({ conversations });
 }));
 
+router.post("/group", protect, asyncHandler(async (req, res) => {
+  const { name, memberIds } = req.body;
+  requireFields(req.body, ["name", "memberIds"]);
+
+  const uniqueOthers = [...new Set((memberIds || []).map(String))].filter(
+    (id) => id !== String(req.user._id)
+  );
+
+  if (uniqueOthers.length < 2) {
+    return res.status(400).json({ message: "Pick at least 2 other people to start a group" });
+  }
+
+  const conversation = await Conversation.create({
+    name: name.trim(),
+    isGroup: true,
+    admin: req.user._id,
+    members: [req.user._id, ...uniqueOthers],
+    messages: []
+  });
+
+  res.status(201).json({
+    conversation: await conversation.populate("members", "name avatar title")
+  });
+}));
+
 router.post("/:userId", protect, asyncHandler(async (req, res) => {
   const peerId = req.params.userId;
   if (peerId === String(req.user._id)) {
@@ -20,7 +45,8 @@ router.post("/:userId", protect, asyncHandler(async (req, res) => {
   }
 
   let conversation = await Conversation.findOne({
-    members: { $all: [req.user._id, peerId], $size: 2 }
+    members: { $all: [req.user._id, peerId], $size: 2 },
+    isGroup: false
   });
 
   if (!conversation) {
@@ -33,8 +59,10 @@ router.post("/:userId", protect, asyncHandler(async (req, res) => {
 }));
 
 router.post("/:conversationId/messages", protect, asyncHandler(async (req, res) => {
-  requireFields(req.body, ["text"]);
-  const { text } = req.body;
+  const { text, audioUrl } = req.body;
+  if (!text?.trim() && !audioUrl) {
+    return res.status(400).json({ message: "Message needs text or a voice note" });
+  }
 
   const conversation = await Conversation.findById(req.params.conversationId);
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
@@ -42,16 +70,20 @@ router.post("/:conversationId/messages", protect, asyncHandler(async (req, res) 
   const isMember = conversation.members.some((id) => String(id) === String(req.user._id));
   if (!isMember) return res.status(403).json({ message: "Not a conversation member" });
 
-  conversation.messages.push({ sender: req.user._id, text });
+  conversation.messages.push({ sender: req.user._id, text: text || "", audioUrl: audioUrl || "" });
   await conversation.save();
 
-  const recipient = conversation.members.find((id) => String(id) !== String(req.user._id));
-  await Notification.create({
-    recipient,
-    actor: req.user._id,
-    type: "message",
-    text: `${req.user.name} sent you a message`
-  });
+  const recipients = conversation.members.filter((id) => String(id) !== String(req.user._id));
+  await Notification.insertMany(
+    recipients.map((recipient) => ({
+      recipient,
+      actor: req.user._id,
+      type: "message",
+      text: conversation.isGroup
+        ? `${req.user.name} sent a message in ${conversation.name}`
+        : `${req.user.name} sent you a message`
+    }))
+  );
 
   res.status(201).json({
     conversation: await conversation.populate("members", "name avatar title")

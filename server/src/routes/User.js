@@ -4,8 +4,7 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-    phone: { type: String, unique: true, sparse: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6, select: false },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     status: { type: String, enum: ["active", "banned"], default: "active" },
@@ -27,13 +26,6 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-userSchema.pre("validate", function requireIdentifier(next) {
-  if (!this.email && !this.phone) {
-    return next(new Error("Provide an email or phone number"));
-  }
-  next();
-});
 
 userSchema.pre("save", async function hashPassword(next) {
   if (!this.isModified("password")) return next();

@@ -36,6 +36,21 @@ export function timeAgo(dateString) {
   return new Date(dateString).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+// Full, unambiguous date + time. Shown alongside the relative time so a post
+// carries its own visible proof of when it was published - useful if two
+// people ever dispute who shared something first.
+export function fullTimestamp(dateString) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
 export async function uploadImage(file) {
   if (!file) return "";
   const formData = new FormData();

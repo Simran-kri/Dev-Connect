@@ -1,4 +1,4 @@
-import { Ban, ShieldAlert, Trash2, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -24,59 +24,11 @@ function formatDate(value) {
 export default function Admin() {
   const [stats, setStats] = useState({ users: 3, posts: 2, projects: 2, groups: 2, reportedPosts: 0 });
   const [analytics, setAnalytics] = useState(null);
-  const [reports, setReports] = useState(null);
-  const [busyId, setBusyId] = useState(null);
-  const [reportError, setReportError] = useState("");
-
-  function loadReports() {
-    api.get("/admin/reports").then(({ data }) => setReports(data.posts)).catch(() => setReports([]));
-  }
 
   useEffect(() => {
     api.get("/admin/stats").then(({ data }) => setStats(data)).catch(() => {});
     api.get("/admin/analytics").then(({ data }) => setAnalytics(data)).catch(() => {});
-    loadReports();
   }, []);
-
-  async function dismissReports(postId) {
-    setBusyId(postId);
-    setReportError("");
-    try {
-      await api.patch(`/admin/posts/${postId}/dismiss-reports`);
-      setReports((current) => current.filter((post) => post._id !== postId));
-    } catch (err) {
-      setReportError(err.response?.data?.message || "Couldn't dismiss the report.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function deleteReportedPost(postId) {
-    if (!window.confirm("Permanently delete this post?")) return;
-    setBusyId(postId);
-    setReportError("");
-    try {
-      await api.delete(`/admin/posts/${postId}`);
-      setReports((current) => current.filter((post) => post._id !== postId));
-    } catch (err) {
-      setReportError(err.response?.data?.message || "Couldn't delete the post.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function banAuthor(userId) {
-    if (!window.confirm("Ban this user? They'll be blocked from logging in.")) return;
-    setBusyId(userId);
-    setReportError("");
-    try {
-      await api.patch(`/admin/users/${userId}/ban`);
-    } catch (err) {
-      setReportError(err.response?.data?.message || "Couldn't update this user's status.");
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   return (
     <div className="admin-dashboard">
@@ -90,47 +42,6 @@ export default function Admin() {
             </article>
           ))}
         </div>
-      </section>
-
-      <section className="panel">
-        <h2><ShieldAlert size={16} /> Reported posts</h2>
-        {reportError && <p className="error">{reportError}</p>}
-        {reports === null && <p className="empty-state">Loading...</p>}
-        {reports?.length === 0 && (
-          <div className="empty-state">
-            <ShieldAlert size={20} />
-            <strong>Nothing reported</strong>
-            <span>Flagged posts will show up here for review.</span>
-          </div>
-        )}
-        {reports?.length > 0 && (
-          <div className="report-list">
-            {reports.map((post) => (
-              <article className="report-row" key={post._id}>
-                <div className="report-row-body">
-                  <strong>{post.author?.name}</strong>
-                  <span className="report-row-email">{post.author?.email}</span>
-                  <p>{post.body}</p>
-                  <small>
-                    Reported by {post.reports.map((reporter) => reporter.name).join(", ")}
-                    {" "}({post.reports.length})
-                  </small>
-                </div>
-                <div className="report-row-actions">
-                  <button className="secondary pill" onClick={() => dismissReports(post._id)} disabled={busyId === post._id}>
-                    Dismiss
-                  </button>
-                  <button className="secondary pill" onClick={() => banAuthor(post.author._id)} disabled={busyId === post.author?._id}>
-                    <Ban size={14} /> Ban author
-                  </button>
-                  <button className="danger-action secondary pill" onClick={() => deleteReportedPost(post._id)} disabled={busyId === post._id}>
-                    <Trash2 size={14} /> Delete post
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
       </section>
 
       {analytics && (

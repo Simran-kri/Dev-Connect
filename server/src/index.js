@@ -13,6 +13,7 @@ import groupRoutes from "./routes/groups.js";
 import notificationRoutes from "./routes/notifications.js";
 import postRoutes from "./routes/posts.js";
 import projectRoutes from "./routes/projects.js";
+import roomRoutes from "./routes/rooms.js";
 import searchRoutes from "./routes/search.js";
 import uploadRoutes from "./routes/uploads.js";
 import userRoutes from "./routes/users.js";
@@ -46,6 +47,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/rooms", roomRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 

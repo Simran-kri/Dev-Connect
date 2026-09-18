@@ -37,7 +37,7 @@ router.get("/:id", protect, asyncHandler(async (req, res) => {
 
 router.post("/", protect, asyncHandler(async (req, res) => {
   requireFields(req.body, ["title", "description"]);
-  const { title, description, github = "", liveDemo = "", images = [] } = req.body;
+  const { title, description, github = "", liveDemo = "", images = [], videoUrl = "", videoFile = "" } = req.body;
 
   const project = await Project.create({
     owner: req.user._id,
@@ -46,7 +46,9 @@ router.post("/", protect, asyncHandler(async (req, res) => {
     techStack: parseList(req.body.techStack),
     github,
     liveDemo,
-    images
+    images,
+    videoUrl,
+    videoFile
   });
 
   res.status(201).json({ project: await project.populate("owner", "name title avatar skills") });
@@ -60,7 +62,7 @@ router.patch("/:id", protect, asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "You can only edit your own projects" });
   }
 
-  const allowed = ["title", "description", "github", "liveDemo", "images"];
+  const allowed = ["title", "description", "github", "liveDemo", "images", "videoUrl", "videoFile"];
   allowed.forEach((field) => {
     if (field in req.body) project[field] = req.body[field];
   });

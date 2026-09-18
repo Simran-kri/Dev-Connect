@@ -9,6 +9,11 @@ const projectSchema = new mongoose.Schema(
     github: { type: String, default: "" },
     liveDemo: { type: String, default: "" },
     images: [{ type: String }],
+    // Either a pasted YouTube/Vimeo/Loom link (videoUrl) or a file uploaded
+    // to Cloudinary (videoFile) - both supported, shown as an embed or a
+    // native player respectively.
+    videoUrl: { type: String, default: "" },
+    videoFile: { type: String, default: "" },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
   },
   { timestamps: true }

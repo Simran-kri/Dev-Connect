@@ -1,82 +1,100 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../state/AuthContext.jsx";
-import { initials, isValidUrl, splitList, uploadImage } from "../lib/helpers.js";
+import { isValidUrl, splitList, uploadImage } from "../lib/helpers.js";
+import Avatar from "../components/Avatar.jsx";
+import EditableField from "../components/EditableField.jsx";
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
-  const [form, setForm] = useState({
-    name: user?.name || "",
-    title: user?.title || "",
-    college: user?.college || "",
-    bio: user?.bio || "",
-    experience: user?.experience || "",
-    skills: user?.skills?.join(", ") || "",
-    github: user?.github || "",
-    linkedin: user?.linkedin || "",
-    portfolio: user?.portfolio || ""
-  });
   const [avatarFile, setAvatarFile] = useState(null);
-  const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
-  async function save(event) {
-    event.preventDefault();
-    setError("");
-    setStatus("");
+  // Every field save is independent - it PATCHes just that one field and
+  // updates the shared user object, rather than one big form with one big
+  // save button for everything.
+  async function saveField(field, rawValue) {
+    let value = rawValue;
 
-    if (!form.name.trim()) {
-      setError("Name is required.");
-      return;
+    if (field === "name" && !rawValue.trim()) {
+      throw new Error("Name can't be empty.");
+    }
+    if (["github", "linkedin", "portfolio"].includes(field) && !isValidUrl(rawValue)) {
+      throw new Error("Enter a valid URL.");
+    }
+    if (field === "skills") {
+      value = splitList(rawValue);
     }
 
-    if (![form.github, form.linkedin, form.portfolio].every(isValidUrl)) {
-      setError("GitHub, LinkedIn and portfolio must be valid URLs.");
-      return;
-    }
-
-    let avatar = user?.avatar || "";
     try {
-      if (avatarFile) {
-        setStatus("Uploading profile picture...");
-        avatar = await uploadImage(avatarFile);
-      }
+      const { data } = await api.put("/users/profile/me", { [field]: value });
+      updateUser(data.user);
     } catch (err) {
-      setError(err.response?.data?.message || "Image upload failed. Check Cloudinary configuration.");
-      return;
+      throw new Error(err.response?.data?.message || "Couldn't save. Try again.");
     }
+  }
 
-    const payload = { ...form, avatar, skills: splitList(form.skills) };
-    const next = { ...user, ...payload };
-    updateUser(next);
-    setStatus("Profile saved.");
-    api.put("/users/profile/me", payload).then(({ data }) => updateUser(data.user)).catch((err) => {
-      setError(err.response?.data?.message || "Could not save profile to backend.");
-    });
+  function pickAvatar(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarError("");
+  }
+
+  async function saveAvatar() {
+    if (!avatarFile) return;
+    setUploadingAvatar(true);
+    setAvatarError("");
+    try {
+      const avatar = await uploadImage(avatarFile);
+      const { data } = await api.put("/users/profile/me", { avatar });
+      updateUser(data.user);
+      setAvatarFile(null);
+      setAvatarPreview("");
+    } catch (err) {
+      setAvatarError(err.response?.data?.message || "Image upload failed. Check Cloudinary configuration.");
+    } finally {
+      setUploadingAvatar(false);
+    }
   }
 
   return (
     <section className="panel profile-editor">
       <div className="profile-head">
-        {user?.avatar ? <img className="avatar big image-avatar" src={user.avatar} alt={form.name} /> : <span className="avatar big">{initials(form.name)}</span>}
+        <Avatar name={user?.name} image={avatarPreview || user?.avatar} size="big" />
         <div>
-          <h2>{form.name}</h2>
-          <p>{form.title || "Developer"} · {form.college}</p>
+          <h2>{user?.name}</h2>
+          <p>{user?.title || "Developer"} · {user?.college}</p>
         </div>
       </div>
-      <form className="form-grid" onSubmit={save}>
-        {Object.entries(form).map(([key, value]) => (
-          key === "bio" || key === "experience" ? (
-            <label key={key}>{key}<textarea value={value} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>
-          ) : (
-            <label key={key}>{key}<input value={value} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>
-          )
-        ))}
-        <label>Profile picture<input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} /></label>
-        {error && <p className="error form-wide">{error}</p>}
-        {status && <p className="success form-wide">{status}</p>}
-        <button className="primary">Save profile</button>
-      </form>
+
+      <div className="avatar-editor">
+        <label className="secondary pill avatar-pick-button">
+          Choose photo
+          <input type="file" accept="image/*" onChange={pickAvatar} hidden />
+        </label>
+        {avatarFile && (
+          <button className="primary pill" onClick={saveAvatar} disabled={uploadingAvatar}>
+            {uploadingAvatar ? "Uploading..." : "Save photo"}
+          </button>
+        )}
+        {avatarError && <p className="error">{avatarError}</p>}
+      </div>
+
+      <div className="editable-field-list">
+        <EditableField label="Name" value={user?.name} onSave={(v) => saveField("name", v)} />
+        <EditableField label="Title" value={user?.title} onSave={(v) => saveField("title", v)} placeholder="e.g. Full Stack Developer" />
+        <EditableField label="College" value={user?.college} onSave={(v) => saveField("college", v)} />
+        <EditableField label="Bio" value={user?.bio} onSave={(v) => saveField("bio", v)} type="textarea" />
+        <EditableField label="Experience" value={user?.experience} onSave={(v) => saveField("experience", v)} type="textarea" />
+        <EditableField label="Skills" value={user?.skills?.join(", ")} onSave={(v) => saveField("skills", v)} placeholder="React, Node, MongoDB" />
+        <EditableField label="GitHub" value={user?.github} onSave={(v) => saveField("github", v)} placeholder="https://github.com/you" />
+        <EditableField label="LinkedIn" value={user?.linkedin} onSave={(v) => saveField("linkedin", v)} placeholder="https://linkedin.com/in/you" />
+        <EditableField label="Portfolio" value={user?.portfolio} onSave={(v) => saveField("portfolio", v)} placeholder="https://you.dev" />
+      </div>
     </section>
   );
 }
