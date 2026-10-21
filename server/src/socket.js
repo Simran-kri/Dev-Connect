@@ -1,4 +1,5 @@
 import Conversation from "./models/Conversation.js";
+import Group from "./models/Group.js";
 import Notification from "./models/Notification.js";
 import Room from "./models/Room.js";
 import User from "./models/User.js";
@@ -235,6 +236,61 @@ export function registerSocket(io) {
       io.to(targetEntry.socketId).emit("voice:force-mute", { roomId });
     });
 
+    // ---------- Group chat (text + voice notes, members only) ----------
+
+    socket.on("group:join", async (groupId) => {
+      if (!groupId) return;
+      const group = await Group.findById(groupId).select("members");
+      const isMember = group?.members.some((id) => String(id) === socket.data.userId);
+      if (!isMember) return;
+
+      socket.join(`group:${groupId}`);
+    });
+
+    socket.on("group:leave", (groupId) => {
+      if (!groupId) return;
+      socket.leave(`group:${groupId}`);
+    });
+
+    socket.on("group:message", async ({ groupId, text, audioUrl }) => {
+      try {
+        const senderId = socket.data.userId;
+        if (!groupId || (!text?.trim() && !audioUrl)) return;
+
+        const group = await Group.findById(groupId);
+        if (!group) return;
+
+        const isMember = group.members.some((id) => String(id) === senderId);
+        if (!isMember) return;
+
+        group.messages.push({ sender: senderId, text: text || "", audioUrl: audioUrl || "" });
+        await group.save();
+
+        const populated = await group.populate("messages.sender", "name avatar");
+        const savedMessage = populated.messages[populated.messages.length - 1];
+        io.to(`group:${groupId}`).emit("group:message:new", { groupId, message: savedMessage });
+
+        const recipients = group.members.filter((id) => String(id) !== senderId);
+        if (recipients.length) {
+          await Notification.insertMany(
+            recipients.map((recipient) => ({
+              recipient,
+              actor: senderId,
+              type: "group",
+              text: `New message in ${group.name}`
+            }))
+          );
+          recipients.forEach((recipient) => {
+            io.to(`user:${recipient}`).emit("notification:new");
+          });
+        }
+      } catch (error) {
+        // Errors used to fail silently. Now they print here and go back to the client.
+        console.error("Group message failed:", error.message);
+        socket.emit("group:error", { groupId, message: error.message });
+      }
+    });
+
     socket.on("disconnect", () => {
       socket.data.joinedRooms?.forEach((roomId) => {
         roomPresence.get(roomId)?.delete(socket.id);
@@ -248,4 +304,3 @@ export function registerSocket(io) {
     });
   });
 }
-

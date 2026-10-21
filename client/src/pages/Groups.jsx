@@ -1,5 +1,6 @@
-import { Code2 } from "lucide-react";
+import { Code2, MessageSquare, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../state/AuthContext.jsx";
 import { demoGroups } from "../data/demo.js";
@@ -38,6 +39,10 @@ export default function Groups() {
     return user?._id && group.members?.some((member) => String(member._id || member) === String(user._id));
   }
 
+  function isOwner(group) {
+    return user?._id && String(group.owner?._id || group.owner) === String(user._id);
+  }
+
   async function toggleMembership(group) {
     if (pendingId || user?._id === "demo-user") return;
     setError("");
@@ -54,6 +59,17 @@ export default function Groups() {
     }
   }
 
+  async function deleteGroup(groupId) {
+    if (!window.confirm("Delete this group for everyone? This can't be undone.")) return;
+    setError("");
+    try {
+      await api.delete(`/groups/${groupId}`);
+      setGroups((current) => current.filter((item) => item._id !== groupId));
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't delete the group.");
+    }
+  }
+
   return (
     <section className="panel">
       <form className="searchbar" onSubmit={createGroup}>
@@ -65,18 +81,32 @@ export default function Groups() {
       <div className="project-grid">
         {groups.map((group) => {
           const member = isMember(group);
+          const owner = isOwner(group);
           return (
             <article className="card" key={group._id}>
               <h3>{group.name}</h3>
               <p>{group.description}</p>
               <small>{group.members?.length || 0} members</small>
-              <button
-                className={member ? "secondary pill following" : "secondary pill"}
-                onClick={() => toggleMembership(group)}
-                disabled={pendingId === group._id}
-              >
-                {member ? "Joined" : "Join group"}
-              </button>
+              <div className="group-card-actions">
+                {member && (
+                  <Link className="primary pill" to={`/groups/${group._id}`}>
+                    <MessageSquare size={15} /> Open chat
+                  </Link>
+                )}
+                {owner ? (
+                  <button className="secondary pill danger-action" onClick={() => deleteGroup(group._id)}>
+                    <Trash2 size={15} /> Delete group
+                  </button>
+                ) : (
+                  <button
+                    className={member ? "secondary pill following" : "secondary pill"}
+                    onClick={() => toggleMembership(group)}
+                    disabled={pendingId === group._id}
+                  >
+                    {member ? "Joined" : "Join group"}
+                  </button>
+                )}
+              </div>
             </article>
           );
         })}

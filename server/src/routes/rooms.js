@@ -36,9 +36,6 @@ router.get("/", protect, asyncHandler(async (req, res) => {
     Room.countDocuments(filter)
   ]);
 
-  // "Live" should reflect whether anyone is actually here right now, not
-  // just that the room document exists - a room isn't permanently "live"
-  // just because it was created once.
   const withPresence = rooms.map((room) => ({
     ...room.toObject(),
     liveCount: getRoomParticipantCount(room._id)

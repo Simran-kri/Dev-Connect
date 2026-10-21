@@ -13,6 +13,7 @@ import Network from "../pages/Network.jsx";
 import UserDetail from "../pages/UserDetail.jsx";
 import Chat from "../pages/Chat.jsx";
 import Groups from "../pages/Groups.jsx";
+import GroupDetail from "../pages/GroupDetail.jsx";
 import Rooms from "../pages/Rooms.jsx";
 import RoomDetail from "../pages/RoomDetail.jsx";
 import Profile from "../pages/Profile.jsx";
@@ -104,6 +105,7 @@ export default function Shell() {
           <Route path="/rooms" element={<Rooms />} />
           <Route path="/rooms/:id" element={<RoomDetail />} />
           <Route path="/groups" element={<Groups />} />
+          <Route path="/groups/:id" element={<GroupDetail />} />
           <Route path="/profile" element={<Profile />} />
           <Route
             path="/admin"

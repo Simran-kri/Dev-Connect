@@ -26,6 +26,38 @@ router.post("/", protect, async (req, res) => {
   res.status(201).json({ group: await group.populate("owner", "name avatar") });
 });
 
+router.get("/:id", protect, async (req, res) => {
+  const group = await Group.findById(req.params.id)
+    .populate("owner", "name avatar")
+    .populate("members", "name avatar")
+    .populate("messages.sender", "name avatar");
+
+  if (!group) return res.status(404).json({ message: "Group not found" });
+
+  const isMember = group.members.some((member) => String(member._id) === String(req.user._id));
+  if (!isMember) {
+    return res.status(403).json({ message: "Join this group to see its chat." });
+  }
+
+  // Only send the most recent messages, same reasoning as live Rooms - a
+  // group chat isn't meant to load its entire history on every visit.
+  const recentMessages = group.messages.slice(-100);
+  res.json({ group: { ...group.toObject(), messages: recentMessages } });
+});
+
+router.delete("/:id", protect, async (req, res) => {
+  const group = await Group.findById(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group not found" });
+
+  const isOwner = String(group.owner) === String(req.user._id);
+  if (!isOwner && req.user.role !== "admin") {
+    return res.status(403).json({ message: "Only the group owner can delete this group" });
+  }
+
+  await group.deleteOne();
+  res.json({ ok: true });
+});
+
 router.post("/:id/join", protect, async (req, res) => {
   const group = await Group.findByIdAndUpdate(
     req.params.id,
@@ -75,4 +107,3 @@ router.post("/:id/posts", protect, async (req, res) => {
 });
 
 export default router;
-

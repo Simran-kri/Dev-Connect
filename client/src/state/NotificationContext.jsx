@@ -27,7 +27,9 @@ export function NotificationProvider({ children }) {
 
     const socket = io(API_URL, { auth: { token: localStorage.getItem("devconnect_token") } });
     socketRef.current = socket;
-    socket.on("notification:new", () => setUnreadCount((count) => count + 1));
+    // Re-read the true unread count from the server instead of blindly
+    // incrementing, so the badge always matches what's actually unread.
+    socket.on("notification:new", () => refreshUnreadCount());
 
     return () => socket.disconnect();
   }, [user?._id]);
