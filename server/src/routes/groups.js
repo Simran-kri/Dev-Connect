@@ -26,6 +26,25 @@ function isOwnerOf(group, userId) {
   return String(group.owner) === String(userId);
 }
 
+// When this member joined. Groups created before join dates were tracked
+// fall back to the group's creation time, so existing members see everything.
+function joinedAtFor(group, userId) {
+  return group.memberJoinedAt?.get(String(userId)) || group.createdAt;
+}
+
+// Adds a member and records their join time. Returns null if they were
+// already in the group, so nothing is reset for existing members.
+async function addMemberToGroup(groupId, userId) {
+  return Group.findOneAndUpdate(
+    { _id: groupId, members: { $ne: userId } },
+    {
+      $addToSet: { members: userId },
+      $set: { [`memberJoinedAt.${userId}`]: new Date() }
+    },
+    { new: true }
+  );
+}
+
 // Only groups you belong to are listed.
 router.get("/", protect, async (req, res) => {
   const groups = await Group.find({ members: req.user._id })
@@ -43,6 +62,7 @@ router.post("/", protect, async (req, res) => {
     description,
     owner: req.user._id,
     members: [req.user._id],
+    memberJoinedAt: new Map([[String(req.user._id), new Date()]]),
     inviteCode: newInviteCode()
   });
 
@@ -52,13 +72,13 @@ router.post("/", protect, async (req, res) => {
 // Joining through an invite link. The code is secret, so only people who
 // were given the link can join.
 router.post("/join/:code", protect, async (req, res) => {
-  const group = await Group.findOneAndUpdate(
-    { inviteCode: req.params.code },
-    { $addToSet: { members: req.user._id } },
-    { new: true }
-  ).populate(populateGroup);
+  const existing = await Group.findOne({ inviteCode: req.params.code });
+  if (!existing) {
+    return res.status(404).json({ message: "This invite link is invalid or has been reset." });
+  }
 
-  if (!group) return res.status(404).json({ message: "This invite link is invalid or has been reset." });
+  const added = await addMemberToGroup(existing._id, req.user._id);
+  const group = await Group.findById((added || existing)._id).populate(populateGroup);
   res.json({ group });
 });
 
@@ -91,11 +111,8 @@ router.post("/:id/members", protect, async (req, res) => {
   const target = await User.findById(userId).select("_id name");
   if (!target) return res.status(404).json({ message: "User not found" });
 
-  const alreadyMember = group.members.some((m) => String(m) === String(target._id));
-  if (!alreadyMember) {
-    group.members.push(target._id);
-    await group.save();
-
+  const added = await addMemberToGroup(group._id, target._id);
+  if (added) {
     await Notification.create({
       recipient: target._id,
       actor: req.user._id,
@@ -120,6 +137,7 @@ router.delete("/:id/members/:userId", protect, async (req, res) => {
   }
 
   group.members = group.members.filter((id) => String(id) !== String(req.params.userId));
+  group.memberJoinedAt?.delete(String(req.params.userId));
   await group.save();
   res.json({ group: await Group.findById(group._id).populate(populateGroup) });
 });
@@ -133,6 +151,7 @@ router.post("/:id/leave", protect, async (req, res) => {
   }
 
   group.members = group.members.filter((id) => String(id) !== String(req.user._id));
+  group.memberJoinedAt?.delete(String(req.user._id));
   await group.save();
   res.json({ ok: true });
 });
@@ -151,6 +170,7 @@ router.delete("/:id", protect, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Members only see messages sent after they joined.
 router.get("/:id", protect, async (req, res) => {
   const group = await findMyGroup(req.params.id, req.user._id);
   if (!group) return res.status(404).json({ message: "Group not found" });
@@ -159,8 +179,10 @@ router.get("/:id", protect, async (req, res) => {
     .populate(populateGroup)
     .populate("messages.sender", "name avatar");
 
-  // Only the most recent messages are sent, same as Rooms.
-  res.json({ group: { ...populated.toObject(), messages: populated.messages.slice(-100) } });
+  const joinedAt = new Date(joinedAtFor(populated, req.user._id));
+  const visible = populated.messages.filter((message) => new Date(message.createdAt) >= joinedAt);
+
+  res.json({ group: { ...populated.toObject(), messages: visible.slice(-100) } });
 });
 
 router.post("/:id/posts", protect, async (req, res) => {
