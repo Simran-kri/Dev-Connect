@@ -1,4 +1,4 @@
-import { Bell, Code2, FolderGit2, LogOut, MessageCircle, Moon, Radio, ShieldCheck, Sun, UserRound, UsersRound, Compass } from "lucide-react";
+import { Bell, Briefcase, Code2, FolderGit2, LogOut, MessageCircle, Moon, Radio, ShieldCheck, Sun, UserRound, UsersRound, Compass } from "lucide-react";
 import { Suspense, lazy } from "react";
 import { NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext.jsx";
@@ -13,6 +13,7 @@ import Network from "../pages/Network.jsx";
 import UserDetail from "../pages/UserDetail.jsx";
 import Chat from "../pages/Chat.jsx";
 import Groups from "../pages/Groups.jsx";
+import Sprints from "../pages/Sprints.jsx";
 import GroupDetail from "../pages/GroupDetail.jsx";
 import Rooms from "../pages/Rooms.jsx";
 import RoomDetail from "../pages/RoomDetail.jsx";
@@ -31,6 +32,7 @@ export default function Shell() {
   const links = [
     ["Feed", "/", Compass],
     ["Projects", "/projects", FolderGit2],
+    ["Sprints", "/sprints", Briefcase],
     ["Network", "/network", UsersRound],
     ["Chat", "/chat", MessageCircle],
     ["Rooms", "/rooms", Radio],
@@ -99,6 +101,7 @@ export default function Shell() {
           <Route path="/" element={<Feed />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/sprints" element={<Sprints />} />
           <Route path="/network" element={<Network />} />
           <Route path="/users/:id" element={<UserDetail />} />
           <Route path="/chat" element={<Chat />} />

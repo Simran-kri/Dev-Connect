@@ -185,6 +185,46 @@ router.get("/:id", protect, async (req, res) => {
   res.json({ group: { ...populated.toObject(), messages: visible.slice(-100) } });
 });
 
+// Messages are saved over plain HTTP. The request only succeeds if the
+// message is stored, so nothing can show as sent when it wasn't saved.
+router.post("/:id/messages", protect, async (req, res) => {
+  const text = String(req.body?.text || "").trim();
+  const audioUrl = String(req.body?.audioUrl || "");
+  if (!text && !audioUrl) {
+    return res.status(400).json({ message: "Message needs text or a voice note" });
+  }
+
+  const group = await findMyGroup(req.params.id, req.user._id);
+  if (!group) return res.status(404).json({ message: "Group not found" });
+
+  group.messages.push({ sender: req.user._id, text, audioUrl });
+  await group.save();
+
+  const saved = group.messages[group.messages.length - 1];
+
+  const recipients = group.members.filter((id) => String(id) !== String(req.user._id));
+  if (recipients.length) {
+    await Notification.insertMany(
+      recipients.map((recipient) => ({
+        recipient,
+        actor: req.user._id,
+        type: "group",
+        text: `New message in ${group.name}`
+      }))
+    );
+  }
+
+  res.status(201).json({
+    message: {
+      _id: saved._id,
+      text: saved.text,
+      audioUrl: saved.audioUrl,
+      createdAt: saved.createdAt,
+      sender: { _id: req.user._id, name: req.user.name, avatar: req.user.avatar || "" }
+    }
+  });
+});
+
 router.post("/:id/posts", protect, async (req, res) => {
   const { text, fileUrl = "" } = req.body;
   if (!text) return res.status(400).json({ message: "Post text is required" });

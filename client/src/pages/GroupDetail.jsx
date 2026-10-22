@@ -1,113 +1,101 @@
 import { Mic, Square, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { io } from "socket.io-client";
-import { API_URL, api } from "../api.js";
+import { api } from "../api.js";
 import { useAuth } from "../state/AuthContext.jsx";
 
-const DELIVERY_TIMEOUT_MS = 10000;
+// How often the chat checks for new messages from other members.
+const REFRESH_MS = 4000;
 
 export default function GroupDetail() {
   const { id } = useParams();
   const { user } = useAuth();
-  const socketRef = useRef(null);
   const [group, setGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [sendError, setSendError] = useState("");
-  const [connected, setConnected] = useState(false);
+  const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const bottomRef = useRef(null);
 
+  // Returns true if the group loaded, false if the user can't see it.
+  async function loadGroup() {
+    try {
+      const { data } = await api.get(`/groups/${id}`);
+      setGroup(data.group);
+      setMessages(data.group.messages || []);
+      setError("");
+      return true;
+    } catch (err) {
+      setError(err.response?.data?.message || "This group doesn't exist.");
+      return false;
+    }
+  }
+
+  // Load the chat, then keep refreshing it while the page is open.
   useEffect(() => {
-    api.get(`/groups/${id}`)
-      .then(({ data }) => {
-        setGroup(data.group);
-        setMessages(data.group.messages || []);
-      })
-      .catch((err) => setError(err.response?.data?.message || "This group doesn't exist."));
+    let cancelled = false;
+    let timer;
+
+    async function tick() {
+      const ok = await loadGroup();
+      if (!cancelled && ok) timer = setTimeout(tick, REFRESH_MS);
+    }
+
+    tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [id]);
 
   useEffect(() => {
-    if (!user?._id || user._id === "demo-user" || error) return;
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth" });
+  }, [messages.length]);
 
-    const socket = io(API_URL, { auth: { token: localStorage.getItem("devconnect_token") } });
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setConnected(true);
-      setSendError("");
-      socket.emit("group:join", id);
-    });
-
-    socket.on("disconnect", () => setConnected(false));
-
-    socket.on("connect_error", (err) => {
-      setConnected(false);
-      setSendError(`Chat connection failed: ${err.message}`);
-    });
-
-    socket.on("group:message:new", (payload) => {
-      if (payload.groupId !== id) return;
-      const incoming = payload.message;
-      const isMine = String(incoming.sender?._id) === String(user._id);
-
-      setMessages((current) => {
-        if (isMine) {
-          // Replace our pending placeholder with the saved message.
-          const pendingIndex = current.findIndex((m) => m.pending && m.text === incoming.text);
-          if (pendingIndex >= 0) {
-            const next = [...current];
-            next[pendingIndex] = incoming;
-            return next;
-          }
-        }
-        return [...current, incoming];
-      });
-    });
-
-    return () => {
-      socket.emit("group:leave", id);
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [id, user?._id, error]);
-
-  function send(event) {
+  async function send(event) {
     event.preventDefault();
     const content = text.trim();
-    if (!content) return;
+    if (!content || sending) return;
 
-    const socket = socketRef.current;
-    if (!socket || !connected) {
-      setSendError("Not connected to the group chat. Refresh the page and try again.");
-      return;
-    }
-
+    setSending(true);
     setSendError("");
-    const tempId = `pending-${Date.now()}`;
-    setMessages((current) => [
-      ...current,
-      { _id: tempId, text: content, sender: { _id: user._id, name: user.name }, pending: true }
-    ]);
-    setText("");
+    try {
+      const { data } = await api.post(`/groups/${id}/messages`, { text: content });
+      setMessages((current) => [...current.filter((m) => m._id !== data.message._id), data.message]);
+      setText("");
+    } catch (err) {
+      // The text stays in the box so nothing is lost.
+      setSendError(err.response?.data?.message || "Message not delivered. Check your connection and try again.");
+    } finally {
+      setSending(false);
+    }
+  }
 
-    socket.emit("group:message", { groupId: id, text: content });
-
-    // If the server never echoes the message back, mark it as not delivered.
-    setTimeout(() => {
-      setMessages((current) =>
-        current.map((m) => (m._id === tempId && m.pending ? { ...m, pending: false, failed: true } : m))
-      );
-    }, DELIVERY_TIMEOUT_MS);
+  async function postVoiceNote(blob) {
+    setUploadingVoice(true);
+    setVoiceError("");
+    try {
+      const formData = new FormData();
+      formData.append("audio", blob, "voice-note.webm");
+      const { data: upload } = await api.post("/uploads/audio", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      const { data } = await api.post(`/groups/${id}/messages`, { audioUrl: upload.url });
+      setMessages((current) => [...current.filter((m) => m._id !== data.message._id), data.message]);
+    } catch (err) {
+      setVoiceError(err.response?.data?.message || "Couldn't send the voice note.");
+    } finally {
+      setUploadingVoice(false);
+    }
   }
 
   async function startRecording() {
-    if (user?._id === "demo-user") return;
     setVoiceError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -118,23 +106,10 @@ export default function GroupDetail() {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-
-        setUploadingVoice(true);
-        try {
-          const formData = new FormData();
-          formData.append("audio", blob, "voice-note.webm");
-          const { data } = await api.post("/uploads/audio", formData, {
-            headers: { "Content-Type": "multipart/form-data" }
-          });
-          socketRef.current?.emit("group:message", { groupId: id, audioUrl: data.url });
-        } catch (err) {
-          setVoiceError(err.response?.data?.message || "Couldn't send the voice note.");
-        } finally {
-          setUploadingVoice(false);
-        }
+        postVoiceNote(blob);
       };
 
       mediaRecorderRef.current = recorder;
@@ -184,16 +159,20 @@ export default function GroupDetail() {
             ) : (
               <p>{message.text}</p>
             )}
-            {message.pending && <small>Sending...</small>}
-            {message.failed && <small className="error">Not delivered</small>}
           </div>
         ))}
         {messages.length === 0 && <p className="empty-state">Be the first to say something in this group.</p>}
+        <div ref={bottomRef} />
       </div>
 
       {(sendError || voiceError) && <p className="error post-error">{sendError || voiceError}</p>}
       <form className="message-box" onSubmit={send}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." disabled={recording} />
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a message..."
+          disabled={recording || sending}
+        />
         <button
           type="button"
           className={recording ? "icon-button recording" : "icon-button"}
@@ -203,8 +182,8 @@ export default function GroupDetail() {
         >
           {recording ? <Square size={16} /> : <Mic size={16} />}
         </button>
-        <button className="primary" disabled={recording || uploadingVoice}>
-          {uploadingVoice ? "Sending..." : "Send"}
+        <button className="primary" disabled={recording || sending || uploadingVoice}>
+          {uploadingVoice ? "Sending..." : sending ? "Sending..." : "Send"}
         </button>
       </form>
     </section>

@@ -14,6 +14,7 @@ import notificationRoutes from "./routes/notifications.js";
 import postRoutes from "./routes/posts.js";
 import projectRoutes from "./routes/projects.js";
 import roomRoutes from "./routes/rooms.js";
+import sprintRoutes from "./routes/sprints.js";
 import searchRoutes from "./routes/search.js";
 import uploadRoutes from "./routes/uploads.js";
 import userRoutes from "./routes/users.js";
@@ -50,7 +51,7 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use("/api/sprints", sprintRoutes);
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).json({ message: err.message || "Server error" });
