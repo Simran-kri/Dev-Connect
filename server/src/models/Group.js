@@ -31,6 +31,8 @@ const groupSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // Secret code behind the invite link. Only people who have the link can join.
+    inviteCode: { type: String, unique: true, sparse: true },
     posts: [groupPostSchema],
     messages: [groupMessageSchema]
   },
