@@ -11,13 +11,10 @@ export default function Chat() {
   const { user } = useAuth();
   const location = useLocation();
   const socketRef = useRef(null);
-  const [people, setPeople] = useState(demoUsers);
+  const [people, setPeople] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
-  const [messages, setMessages] = useState([
-    { senderId: "demo", senderName: "Simran", text: "Can you explain JWT flow?" },
-    { senderId: "you", senderName: "You", text: "Register/login creates token, protected routes verify it, frontend stores it and sends Bearer header." }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [groupMode, setGroupMode] = useState(false);
   const [groupName, setGroupName] = useState("");

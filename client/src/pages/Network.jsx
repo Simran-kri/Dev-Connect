@@ -10,7 +10,7 @@ import Pagination from "../components/Pagination.jsx";
 export default function Network() {
   const { user, updateUser } = useAuth();
   const [query, setQuery] = useState("");
-  const [users, setUsers] = useState(demoUsers);
+  const [users, setUsers] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);

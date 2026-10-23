@@ -10,7 +10,7 @@ export default function UserDetail() {
   const { id } = useParams();
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
-  const [person, setPerson] = useState(demoUsers.find((item) => item._id === id) || demoUsers[0]);
+  const [person, setPerson] = useState(null);
   const [projects, setProjects] = useState(demoProjects);
   const [messaging, setMessaging] = useState(false);
   const [followPending, setFollowPending] = useState(false);

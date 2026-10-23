@@ -11,7 +11,7 @@ import { uploadImage } from "../lib/helpers.js";
 
 export default function Feed() {
   const { user } = useAuth();
-  const [posts, setPosts] = useState(demoPosts);
+  const [posts, setPosts] = useState([]);
   const [feedMode, setFeedMode] = useState("all");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState("");

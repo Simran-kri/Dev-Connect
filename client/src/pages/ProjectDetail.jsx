@@ -6,7 +6,7 @@ import { initials } from "../lib/helpers.js";
 
 export default function ProjectDetail() {
   const { id } = useParams();
-  const [project, setProject] = useState(demoProjects.find((item) => item._id === id) || demoProjects[0]);
+  const [project, setProject] = useState(null);
 
   useEffect(() => {
     api.get(`/projects/${id}`).then(({ data }) => setProject(data.project)).catch(() => {});

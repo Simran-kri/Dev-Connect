@@ -9,7 +9,7 @@ import { toEmbedUrl } from "../lib/video.js";
 import Pagination from "../components/Pagination.jsx";
 
 export default function Projects() {
-  const [projects, setProjects] = useState(demoProjects);
+  const [projects, setProjects] = useState([]);
   const [form, setForm] = useState({ title: "", description: "", techStack: "", github: "", liveDemo: "", videoUrl: "" });
   const [imageFile, setImageFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);

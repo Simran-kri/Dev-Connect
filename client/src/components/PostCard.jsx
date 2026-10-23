@@ -1,3 +1,4 @@
+import ExpandableText from "./ExpandableText.jsx";
 import { Check, Flag, Heart, MessageSquare, Pencil, Repeat2, Send, Share2, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "../api.js";
@@ -230,7 +231,7 @@ export default function PostCard({ post, onDeleted, onUpdated }) {
         </form>
       ) : (
         <>
-          <p>{source.body}</p>
+         <ExpandableText text={source.body} />
           {source.images?.length > 0 && (
             <div className={`post-image-grid count-${Math.min(source.images.length, 4)}`}>
               {source.images.slice(0, 4).map((src, index) => (
